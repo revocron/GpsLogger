@@ -25,8 +25,37 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Upload APK
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore maintenance.keystore \
+            -alias maintenance \
+            -keyalg RSA -keysize 2048 \
+            -validity 10000 \
+            -storepass maintenance123 \
+            -keypass maintenance123 \
+            -dname "CN=Maintenance, OU=Dev, O=Revolon, L=Tunis, ST=Tunis, C=TN"
+
+      - name: Align APK
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools/ | sort -V | tail -1)
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/zipalign -v -p 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            maintenance-aligned.apk
+
+      - name: Sign APK
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools/ | sort -V | tail -1)
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/apksigner sign \
+            --ks maintenance.keystore \
+            --ks-key-alias maintenance \
+            --ks-pass pass:maintenance123 \
+            --key-pass pass:maintenance123 \
+            --out maintenance.apk \
+            maintenance-aligned.apk
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: GpsLogger-release
-          path: app/build/outputs/apk/release/*.apk
+          name: maintenance-apk
+          path: maintenance.apk
