@@ -7,7 +7,10 @@ import android.app.Service;
 import android.content.Intent;
 import android.location.Location;
 import android.os.Build;
+import android.content.ContentValues;
+import android.net.Uri;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -47,6 +50,7 @@ public class GpsService extends Service {
     private PowerManager.WakeLock wakeLock;
     private JSONArray logArray;
     private File outputFile;
+    private String outputFileName;
     private SimpleDateFormat isoFormat;
 
     @Override
@@ -83,13 +87,17 @@ public class GpsService extends Service {
     }
 
     private void initOutputFile() {
-        // Dossier : /sdcard/GpsLogger/
-        File dir = new File(Environment.getExternalStorageDirectory(), "GpsLogger");
+        // Dossier Documents/GpsLogger/ accessible via Gestionnaire de fichiers
+        File dir = new File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            "GpsLogger"
+        );
         if (!dir.exists()) dir.mkdirs();
 
         // Nom du fichier avec date de démarrage
         String startDate = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(new Date());
-        outputFile = new File(dir, "gps_log_" + startDate + ".json");
+        outputFileName = "gps_log_" + startDate + ".json";
+        outputFile = new File(dir, outputFileName);
 
         logArray = new JSONArray();
         Log.i(TAG, "Fichier de log : " + outputFile.getAbsolutePath());
@@ -123,13 +131,21 @@ public class GpsService extends Service {
         try {
             JSONObject entry = new JSONObject();
             entry.put("timestamp", isoFormat.format(new Date(loc.getTime())));
-            entry.put("latitude", loc.getLatitude());
-            entry.put("longitude", loc.getLongitude());
-            entry.put("altitude_m", loc.hasAltitude() ? loc.getAltitude() : JSONObject.NULL);
-            entry.put("accuracy_m", loc.hasAccuracy() ? loc.getAccuracy() : JSONObject.NULL);
-            entry.put("speed_ms", loc.hasSpeed() ? loc.getSpeed() : JSONObject.NULL);
-            entry.put("bearing_deg", loc.hasBearing() ? loc.getBearing() : JSONObject.NULL);
-            entry.put("provider", loc.getProvider());
+
+            // Latitude : ND si non disponible ou invalide
+            if (loc.getLatitude() == 0.0 && loc.getLongitude() == 0.0) {
+                entry.put("latitude", "ND");
+                entry.put("longitude", "ND");
+            } else {
+                entry.put("latitude", loc.getLatitude());
+                entry.put("longitude", loc.getLongitude());
+            }
+
+            entry.put("altitude_m", loc.hasAltitude() ? loc.getAltitude() : "ND");
+            entry.put("accuracy_m", loc.hasAccuracy() ? loc.getAccuracy() : "ND");
+            entry.put("speed_ms", loc.hasSpeed() ? loc.getSpeed() : "ND");
+            entry.put("bearing_deg", loc.hasBearing() ? loc.getBearing() : "ND");
+            entry.put("provider", loc.getProvider() != null ? loc.getProvider() : "ND");
 
             logArray.put(entry);
             writeToFile();
